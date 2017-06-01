@@ -22,7 +22,11 @@ import org.apache.hadoop.util.ToolRunner;
  * User: sonyaling
  * Date: 1/23/14
  * Time: 9:58 AM
- * To change this template use File | Settings | File Templates.
+ *
+ * command line:
+ * hadoop jar hadoopbook-demo-1.0.jar com.myspace.hadoopbook.etl.EtlDriver -D mapred.reduce.tasks=8 \
+ * -libjars libs/httpclient-4.3.2.jar,libs/httpcore-4.3.1.jar input/etl output/etl2
+ *
  */
 public class EtlDriver extends Configured implements Tool {
 

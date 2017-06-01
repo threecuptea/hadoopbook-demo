@@ -25,7 +25,10 @@ import java.net.URI;
  * User: sonyaling
  * Date: 7/5/13
  * Time: 6:24 PM
- * To change this template use File | Settings | File Templates.
+ *
+ * command line:
+ * hadoop jar hadoopbook-demo-1.0.jar com.myspace.hadoopbook.sort.SortByTemperatureUsingTotalOrderPartitioner \
+ * -D mapred.reduce.tasks=30 input/ncdc/all-seq output-totalsort
  */
 public class SortByTemperatureUsingTotalOrderPartitioner extends Configured implements Tool {
 

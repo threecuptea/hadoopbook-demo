@@ -37,7 +37,8 @@
           I created IdPartitioner (including VideoId only) as the PartitionerClass and GroupComparator (including 
           VideoId only) as the GroupingComparatorClass and KeyComparator (including both) as the SortComparatorClass
           so that all comedy_comparison records of the same video will go to the same Reducer and grouped under 
-          the same key.  I will be able to call Google API only once for each video.
+          the same key.  I will be able to call Google API only once for each video. KeyComparator can be ignore in 
+          this case.  Hadoop will  honor the natural order of TextIntPair.
         - I use combiner to aggregate local data and reduce data shuffle between mapper and reducer.    
        
    2. Sort
@@ -62,7 +63,32 @@
       _InputSampler.RandomSampler(freq, numSamples, maximumSplitsSampled)_ 
       
       to sample the key space and save the key distribution. SortByTemperatureUsingTotalOrderPartitioner declares 
-      TotalOrderPartitioner as its PartitionClass. TotalOrderPartitioner uses the above key distribution to contruct partitions.         
-         
+      TotalOrderPartitioner as its PartitionClass. TotalOrderPartitioner uses the above key distribution to contruct partitions.
+                      
+      SortByTemperatureUsingTotalOrderPartitioner uses SortDataPreprocessor to filter out invalid climate data and save 
+      to SequenceFile.
       
+   3. Join
+   
+      MaxTemperatureByStationNameUsingDistributedCacheFile, MaxTemperatureByStationNameUsingDistributedCacheFileApi
+      
+      Join implementation depends upon how large the dataset to be joined.  We will use DistributedCache if one dataset
+      is small enough to be distributed to each node.  MaxTemperatureByStationNameUsingDistributedCacheFile etc.
+      distribute NcdcStationMetadata data via DistributedCache and MaxTemperatureReducerWithStationLookup uses it
+      for station name lookup.  Please notice that all my applications here use ToolRunner which is backed by 
+      GenericOptionsParser which takes hadoop command line parameter _-files_ for files to be distributed. Files can
+      be accesssed directly using path.  MaxTemperatureByStationNameUsingDistributedCacheFileApi is a variant to use
+      DistributedCache api directly. Hadoop treat files parameters without hdfs:// as local files.
+      
+      JoinDriver
+      
+      JoinDriver is an reduce-side join example when both dataset to be joined are large.  JoinDriver uses 
+      MultipleInputs as input and TextPair as the key class. MultipleInputs has one input of NCDC metadata processed  
+      by JoinStationMapper and another input of NCDC climate records processed by JoinRecordMapper.  JoinStationMapper
+      output a TextPair object of stationID combined with "0" tag and JoinRecordMapper output a TextPair object of
+      stationID combined with "1" tag.    
+       
+      JoinDriver uses similar technique we use in SecondarySort. It uses TextPair,first for partitioning as well as 
+      GroupComparator.  Since tag "0" comes before tag "1",JoinReducer can retrieve one record of station metada data 
+      then loop through NCDC climate data to process.                                                                                                          
       

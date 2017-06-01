@@ -24,3 +24,4 @@ fabric.properties
 jars/
 build/
 input/
+conf/
