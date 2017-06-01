@@ -12,17 +12,22 @@
         - Both metrics should include derived statistics: leftPreferedCount, rightPreferedCount, leftRejectedCount
           , rightRejectedCount that come from processing data provided: comedy_comparisons.train, 
           comedy_comparisons.test in the format of                    
-          _fY_FQMQpjok,sNabaB-eb3Y,left_   
-          _Vr4D8xO2lBY,sNabaB-eb3Y,right_     
+            _fY_FQMQpjok,sNabaB-eb3Y,left_   
+            _Vr4D8xO2lBY,sNabaB-eb3Y,right_     
           left or right was set based on which video the viewer liked more
         - Both Tables will have an indication if the data was from training or test file
         
       To accomplish this (See _doc/comedy_comparisons_ETL-summary_ and _doc/notes-and-scripts_ for the details)
-        - I wrote a Hadoop MapReduce job using MultipleOutputs: 
+        - I wrote a Hadoop MapReduce job using MultipleOutputs:
           * Output the video preference summary based upon comedy_comparison data to a Hive external table 
-            etl_prefer_summary
+            etl_prefer_summary by using the combinaton of
+              _MultipleOutputs.addNamedOutput(job, "prefer", TextOutputFormat.class, Text.class, Text.class);_
+              _multipleOutputs.write("prefer", id, new Text(combinedValue), PREFER_BASE_PATH);_
           * Output jsons of individual video response from Google YouTube Data API to a Hive external table
-            googleapis_youtube
+            googleapis_youtube by using the combination of 
+              _MultipleOutputs.addNamedOutput(job, "json", TextOutputFormat.class, Text.class, NullWritable.class);_
+              _multipleOutputs.write("json", new Text(result.toString()), NullWritable.get(), JSON_BASE_PATH);_
+            
         - Join etl_prefer_summary and googleapis_youtube to generate __etl_video_matrix__.
         - topicId is a nested array field of googleapis_youtube table.  Therefore, I had to create 
           googleapis_youtube_exploded table by using LATERAL VIEW explode of googleapis_youtube table
@@ -62,11 +67,11 @@
        
       _InputSampler.RandomSampler(freq, numSamples, maximumSplitsSampled)_ 
       
-      to sample the key space and save the key distribution. SortByTemperatureUsingTotalOrderPartitioner declares 
+      to sample the key space and save the key distribution. SortByTemperatureUsingTotalOrderPartitioner uses 
       TotalOrderPartitioner as its PartitionClass. TotalOrderPartitioner uses the above key distribution to contruct partitions.
                       
       SortByTemperatureUsingTotalOrderPartitioner uses SortDataPreprocessor to filter out invalid climate data and save 
-      to SequenceFile.
+      to SequenceFile first.
       
    3. Join
    
@@ -74,13 +79,13 @@
       
       Join implementation depends upon how large the dataset to be joined.  We will use DistributedCache if one dataset
       is small enough to be distributed to each node.  MaxTemperatureByStationNameUsingDistributedCacheFile etc.
-      distribute NcdcStationMetadata data via DistributedCache and MaxTemperatureReducerWithStationLookup uses it
+      distribute NcdcStationMetadata data via DistributedCache then MaxTemperatureReducerWithStationLookup uses it
       for station name lookup.  Please notice that all my applications here use ToolRunner which is backed by 
       GenericOptionsParser which takes hadoop command line parameter _-files_ for files to be distributed. Files can
       be accesssed directly using path.  MaxTemperatureByStationNameUsingDistributedCacheFileApi is a variant to use
-      DistributedCache api directly. Hadoop treat files parameters without hdfs:// as local files.
+      DistributedCache api directly. Hadoop treats files parameters without hdfs:// as local files.
       
-      JoinDriver
+      JoinDriver and its associated classes
       
       JoinDriver is an reduce-side join example when both dataset to be joined are large.  JoinDriver uses 
       MultipleInputs as input and TextPair as the key class. MultipleInputs has one input of NCDC metadata processed  
@@ -88,7 +93,48 @@
       output a TextPair object of stationID combined with "0" tag and JoinRecordMapper output a TextPair object of
       stationID combined with "1" tag.    
        
-      JoinDriver uses similar technique we use in SecondarySort. It uses TextPair,first for partitioning as well as 
-      GroupComparator.  Since tag "0" comes before tag "1",JoinReducer can retrieve one record of station metada data 
+      JoinDriver uses similar technique we use in SecondarySort. It uses TextPair.first for partitioning as well as 
+      GroupComparator.  Since tag "0" comes before tag "1",JoinReducer can retrieve one record of station metadata 
       then loop through NCDC climate data to process.                                                                                                          
+   
+   4. Split
       
+      PartitionByStationYearUsingMultipleOutputs
+      
+      This is a simple example to illustrate how to output NCDC climate data dynamically in the directory structure of
+       {stationID}/{year}.
+       
+      The key point is to use MultipleOutputs.  It differs from comedy_comparison_etl that I did not pre-configure using
+      NamedOutput since the ouput path is dynamic.  The ouput is solely controlled by 
+        _String basePath = String.format("%s/%s/part", parser.getStationId(), parser.getYear());_
+        _multipleOutputs.write(NullWritable.get(), value, basePath)_
+      
+      SmallFilesToSequenceFileConverter2 and its associated classes
+      
+      The goal is to condense lots of small files into SequeneceFile (a binary file of key-value entries.)
+      and the file name is the entry key and the content is the entry value.
+      
+      This is to illustrate using customized InputFormat as well as RecordReader to make an input non-splitable and 
+      process the input as a whole.  WholeFileInputFormat2 is the customized InputFormat class. non-splitable input is 
+      accomplished by overriding
+        _protected boolean isSplitable(JobContext context, Path filename) { return false; }_
+        
+      WholeFileInputFormat2 also use customized WholeFileRecordReader2 that intitialize FileSplit and Configuration.
+        _public void initialize(InputSplit inputSplit, TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException {
+                 fileSplit = (FileSplit) inputSplit;
+                 conf = taskAttemptContext.getConfiguration();
+             }_
+      
+      _nextKeyValue()_ is the key method which reads all bytes of the FileSplit and set BytesWritable accordingly so 
+      that it reads the file content as a whole.  It has toggled flag and it only return true for the first read.
+      The followings are the snippet.
+      
+              byte[] buf = new byte[(int) fileSplit.getLength()];
+              Path path = fileSplit.getPath();         
+              FileSystem fs = path.getFileSystem(conf); 
+              in = fs.open(path);             
+             IOUtils.readFully(in, buf, 0, buf.length);
+             value.set(buf, 0, buf.length);         
+             
+                    
+        
