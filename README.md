@@ -132,10 +132,10 @@
       that it reads the file content as a whole.  It has toggled flag and it only return true for the first read.
       The followings are the snippet.
       
-              byte[] buf = new byte[(int) fileSplit.getLength()];
-              Path path = fileSplit.getPath();         
-              FileSystem fs = path.getFileSystem(conf); 
-              in = fs.open(path);             
+             byte[] buf = new byte[(int) fileSplit.getLength()];
+             Path path = fileSplit.getPath();         
+             FileSystem fs = path.getFileSystem(conf); 
+             in = fs.open(path);             
              IOUtils.readFully(in, buf, 0, buf.length);
              value.set(buf, 0, buf.length);         
              
