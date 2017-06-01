@@ -1,0 +1,172 @@
+
+************************************
+* BUILD and RUN my EtlDriver
+*******************************
+mvn package -DskipTests=true
+
+hadoop jar hadoopbook-demo-1.0.jar com.myspace.hadoopbook.etl.EtlDriver -D mapred.reduce.tasks=8 \
+-libjars libs/httpclient-4.3.2.jar,libs/httpcore-4.3.1.jar input/etl output/etl2
+
+************************************
+* BUILD JSON Serde jar sourced from Reberto Congiu
+*******************************
+cd ~/projects/samples/Hive-JSON-Serde-develop
+mvn -Dcdh.version=0.10.0-cdh4.5.0 package -DskipTests=true
+
+hive
+**********************************
+* CREATE EXTERNAL TABLE etl_prefer_summary and point to Hadoop job multi-output prefer folder and verify counts
+*******************************
+CREATE EXTERNAL TABLE IF NOT EXISTS etl_prefer_summary (
+video_id STRING,
+left_prefer INT,
+right_prefer INT,
+left_reject INT,
+right_reject INT,
+source STRING
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
+LOCATION '/user/sonyaling/output/etl2/prefer'
+;
+
+hive> SELECT COUNT(*) FROM etl_prefer_summary;
+22737
+
+**********************************
+* CREATE EXTERNAL TABLE googleapis_youtube to pointing to Hadoop mutioutputs json folders,  need mappings because items
+* and statistics are reserved words, see sample youtube-video-response.json
+*******************************
+add jar target/json-serde-1.1.9.2-SNAPSHOT-jar-with-dependencies.jar;
+
+CREATE EXTERNAL TABLE IF NOT EXISTS googleapis_youtube (
+  kind STRING,
+  etag STRING,
+  pageInfo STRUCT<totalResults:INT,resultsPerPage:INT>,
+  v_items ARRAY<STRUCT<kind:STRING,
+                     etag:STRING,
+                     id:STRING,
+                     v_statistics:STRUCT<viewCount:INT,likeCount:INT,dislikeCount:INT,favoriteCount:INT,commentCount:INT>,
+                     topicDetails:STRUCT<topicIds:ARRAY<STRING>,relevantTopicIds:ARRAY<STRING>>
+                    >
+             >
+)
+ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
+WITH SERDEPROPERTIES ( "mapping.v_items" = "items", "mapping.v_statistics" = "statistics" )
+LOCATION '/user/sonyaling/output/etl2/json';
+
+#Make sure I can select JSON documents hierarchy
+SELECT v_items[0].id,v_items[0].v_statistics.viewCount,v_items[0].v_statistics.likeCount,v_items[0].v_statistics.dislikeCount
+,v_items[0].v_statistics.favoriteCount,v_items[0].v_statistics.commentCount, v_items[0].topicDetails.topicIds FROM googleapis_youtube LIMIT 30;
+
+
+************************************
+* CREATE etl_video_matrix TABLE AS SELECT JOIN BY both etl_prefer_summary and googleapis_youtube
+* etl_video_matrix is one of matrix required.
+*******************************
+CREATE TABLE IF NOT EXISTS etl_video_matrix
+AS
+SELECT a.video_id, a.left_prefer, a.right_prefer, a.left_reject, a.right_reject, b.v_items[0].v_statistics.viewCount,
+b.v_items[0].v_statistics.likeCount, b.v_items[0].v_statistics.dislikeCount, b.v_items[0].v_statistics.favoriteCount,
+b.v_items[0].v_statistics.commentCount, a.source
+FROM etl_prefer_summary a LEFT OUTER JOIN googleapis_youtube b
+ON (a.video_id = b.v_items[0].id) SORT BY a.video_id
+;
+SELECT COUNT(*) FROM etl_video_matrix
+#COUNT should 22737
+
+
+************************************
+* CREATE googleapis_youtube_exploded FOR etl_topic_matrix because v_items[0].topicDetails.topicIds is an array.
+*  topicIds need to be exploded before it can be grouped and summarized
+*******************************
+CREATE TABLE IF NOT EXISTS googleapis_youtube_exploded
+AS
+SELECT topicId, v_items[0].id,v_items[0].v_statistics.viewCount,v_items[0].v_statistics.likeCount,v_items[0].v_statistics.dislikeCount,v_items[0].v_statistics.favoriteCount,v_items[0].v_statistics.commentCount FROM googleapis_youtube
+LATERAL VIEW explode(v_items[0].topicDetails.topicIds) googleapis_youtube_table AS topicId;
+
+
+CREATE TABLE IF NOT EXISTS etl_topic_matrix
+AS
+SELECT b.topicId, a.source, SUM(a.left_prefer) tot_left_prefer, SUM(a.right_prefer) tot_right_prefer,
+SUM(a.left_reject) tot_left_reject, SUM(a.right_reject) tot_right_reject, SUM(b.viewCount) tot_view_count,
+SUM(b.likeCount) tot_like_count, SUM(b.dislikeCount) tot_dislike_count, SUM(b.favoriteCount) tot_favorite_count,
+SUM(b.commentCount) tot_comment_count
+FROM googleapis_youtube_exploded b JOIN etl_prefer_summary a ON (a.video_id = b.id)
+GROUP BY b.topicId, a.source;
+
+
+************************************
+* The followings are for verifications
+*******************************
+************************************
+* CREATE and LOAD comedy_comparisons
+*******************************
+
+CREATE TABLE IF NOT EXISTS comedy_comparisons (
+left_item_id string,
+right_item_id string,
+prefer string
+)
+PARTITIONED BY (source string)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+;
+
+LOAD DATA LOCAL INPATH 'input/etl/comedy_comparisons.train' INTO TABLE comedy_comparisons PARTITION (source='train');
+LOAD DATA LOCAL INPATH 'input/etl/comedy_comparisons.test' INTO TABLE comedy_comparisons PARTITION (source='test');
+
+hive> SELECT COUNT(*) FROM etl_prefer_summary;
+22737
+
+#The followings verify the count
+SELECT COUNT(*) FROM
+(
+  SELECT DISTINCT ID FROM (
+    SELECT LEFT_ITEM_ID ID FROM comedy_comparisons WHERE source = 'train'
+    UNION ALL
+    SELECT RIGHT_ITEM_ID ID FROM comedy_comparisons WHERE source = 'train'
+  ) UR
+) DR
+18474
+
+SELECT COUNT(*) FROM etl_prefer_summary WHERE source = 'train';
+18474
+
+SELECT COUNT(*) FROM
+(
+  SELECT DISTINCT ID FROM (
+    SELECT LEFT_ITEM_ID ID FROM comedy_comparisons WHERE source = 'test'
+    UNION ALL
+    SELECT RIGHT_ITEM_ID ID FROM comedy_comparisons WHERE source = 'test'
+  ) UR
+) DR
+4263
+
+SELECT COUNT(*) FROM etl_prefer_summary WHERE source = 'test';
+4263
+
+#18474 + 4263 = 22737
+
+#Total unique item IDs
+SELECT COUNT(*) FROM
+(
+  SELECT DISTINCT ID FROM (
+    SELECT LEFT_ITEM_ID ID FROM comedy_comparisons WHERE source = 'train'
+    UNION ALL
+    SELECT RIGHT_ITEM_ID ID FROM comedy_comparisons WHERE source = 'train'
+    UNION ALL
+    SELECT LEFT_ITEM_ID ID FROM comedy_comparisons WHERE source = 'test'
+    UNION ALL
+    SELECT RIGHT_ITEM_ID ID FROM comedy_comparisons WHERE source = 'test'
+  ) UR
+) DR
+21207
+
+SELECT COUNT(*) FROM
+(SELECT DISTINCT video_id FROM etl_prefer_summary) VS;
+21207
+
+There should be easily two more validations of etl_video_matrix
+# total left_prefer = # total right_reject
+# total left_reject = # total left_reject
+because left_prefer would be incremented by 1 for the left video an right_reject would be incremented
+by 1 for the right video.

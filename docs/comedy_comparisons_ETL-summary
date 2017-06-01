@@ -1,0 +1,35 @@
+Here is my approach and high-level summary.
+
+I want to design a Hadoop job that accomplish the followings:
+
+1.  Process both train & test data of comedy_comparisons files
+2.  Summarize leftPreferedCount, rightPreferedCount, leftRejectedCount, rightRejectedCount for each video item within its source(train/ test) group.
+3.  I want to retrieve videoID metadata from googleapis site for each video item.  If a video item appear in both train and test, I should only retrieve it once.
+4. I want to output both preference summary as well as video json meta data by this Hadoop job. 
+5. Use JSON Serde if possible to save the hassels of parsing json documents in MapReduce jobs.
+
+
+If I use compositeKey(itemId + source) as it is, the same videoId of different source will go to different group as input for reducer and even different reducers.  I have no way to avoid duplicate json metadata retrieval in this case. 
+Therefore, I use the idea of secondary sort.  Yes, I use a class called TextIntPair capturing compositeKey (itemId + sourceOrd).  However, I partition keys by itemID only and group key by itemID only.  That will ensure only one key instance for any unique videoID in all reducers.  To ensure any incoming values for a given videoID follow determined order (all data from train/ test are together), I sort by both (itemId + source). See  IdPartitioner, GroupComparator, KeyComparator class in EtlDriver class.
+
+I use MultipleOutputs to accomplish output both preference summary as well as video json meta data.  The basepath of preference summary is 'prefer' and the basepath of json meta data is 'json'. If '-3lppfJv8IQ' appear multiple times in both train and test, I should output exactly two entries of preference summary in 'prefer' path and one entry of json meta data in 'json' path.
+
+I use combiner to aggregate local data and reduce data shuffle between mapper and reducer.  However, the Combiner may be called 0, 1, or many times on each key between the mapper and reducer. There can be multiple records for the combination of videoID and source when they come to a reducer.  I have to conslidate data and taking care of issues like //http://stackoverflow.com/questions/19589552/java-hadoop-reducer-receives-different-values-for-the-same-key-multiple-times.
+
+I use HttpClient to retrive json.  It takes 3 seconds for each retrieval.  I don't think it's a good idea to have internet connections on all Hadoop nodes.  There are significant security risks.  It would be interesting to know how industry handle this needs.  My guessing is to assign reduce(or map) slots to limited nodes with internet connections.
+
+I have Yarn pseudo-distributed in my laptop (I have 4 processors and each has 6 cores).  I ran this Hadoop jobs with 8 reduce tasks.  It took 39 minutes for the job.  
+
+I output preference summary and json meta in different sub-path and CREATE EXTERNAL TABLES pointing to them.
+
+There are some challenge of ingest googleapi json meta data.  I use JSON Serde written by Reberto Congiu to ingest googleapis video json data.  by creating table as  
+CREAT TABLE table-name (
+ :
+)
+ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
+
+Use Hive complex data types like STRUCT, ARRAY to define nestsed JSON structures and join them with plain tabular preference summary. Another challenge is that I cannot group them without exploding topicIds with a lateral view since topicIds is an ARRAY. 
+
+
+I include README requirement,  all Hive scripts and non-Hive scripts executed and Java sources files (all sources are under com.myspace.hadoopbook.etl.  They use other support classes and my practice samples from 'Hadoop The Definitive Guide).  I can provide two input files: comedy_comparisons.test, intermediate results and final results if needed.       
+ 
