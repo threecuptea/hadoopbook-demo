@@ -42,26 +42,27 @@
        
    2. Sort
    
-      MaxTemperatureUsingSecondarySort2 
+      MaxTemperatureUsingSecondarySort2       
       This is a __Secondary Sort__ example.  The goal is to generate a yearly maximum temperature report using NCDC 
       climate data.
       I used a similar technique as comedy_comparison_etl.  I combined the year and air temerature into an IntPair2 
       object as the key. FirstPartitioner and GroupComparator use year only. The KeyComparator uses the year 
       and air temerature both.  However, airing temporature is in reverse order.  Both Mapper and Reducer use IntPair2 
       as the key and NullWritable as the value.  In another word, Reducer will receive the key combined with the year 
-      and the maximum temperature and nothing more.
+      and the maximum temperature and nothing more and output directly.
       
-      SortByTemperatureUsingTotalOrderPartitioner
+      SortByTemperatureUsingTotalOrderPartitioner      
       This is a __Total Sort__ example.  The goal is to generate temperature sorted in total order.  By default, 
       MapReduce will sort input records by their keys.  A reduce task with 30 reducers will produce 30 files, each 
       of which is sorted.  There is no easy way to combine the files to produce a globally sorted file.  
-      To archive __Total Sort__, one option is to use single partition only.  That defeat the purpose of parallelism.
-      the other option is to divide the partition by the key itself.  In this case, that's the temperature.  
-      However, partions manually devided might cause uneven workload among reducer.  
-      SortByTemperatureUsingTotalOrderPartitioner use 
-      InputSampler.RandomSampler(freq, numSamples, maximumSplitsSampled) to sample the key space and save the key 
-      distribution. SortByTemperatureUsingTotalOrderPartitioner declares TotalOrderPartitioner as its PartitionClass. 
-      TotalOrderPartitioner uses the above key distribution to contruct partitions.         
+      To archive __Total Sort__, one option is to use single partition only.  That defeats the purpose of parallelism.
+      The other option is to divide the partition by the key itself.  In this case, that's the temperature.  
+      However, partitions manually divided might cause uneven workload among reducers. SortByTemperatureUsingTotalOrderPartitioner uses
+       
+      _InputSampler.RandomSampler(freq, numSamples, maximumSplitsSampled)_ 
+      
+      to sample the key space and save the key distribution. SortByTemperatureUsingTotalOrderPartitioner declares 
+      TotalOrderPartitioner as its PartitionClass. TotalOrderPartitioner uses the above key distribution to contruct partitions.         
          
       
       
