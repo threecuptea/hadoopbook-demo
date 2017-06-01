@@ -24,12 +24,13 @@
           * Output jsons of individual video response from Google YouTube Data API to a Hive external table
             googleapis_youtube
         - Join etl_prefer_summary and googleapis_youtube to generate __etl_video_matrix__.
-        - topicId is a nested array field of googleapis_youtube table.  Therefore, I created googleapis_youtube_exploded
-          table by using LATERAL VIEW explode of googleapis_youtube table
+        - topicId is a nested array field of googleapis_youtube table.  Therefore, I had to create 
+          googleapis_youtube_exploded table by using LATERAL VIEW explode of googleapis_youtube table
         - Join googleapis_youtube_exploded table with etl_prefer_summary and group by topicid & source to generate 
           __etl_topic_matrix__.           
         - googleapis_youtube table was created using org.openx.data.jsonserde.JsonSerDe and with the schema composed of
-          nested Hive STRUCT and ARRAY exactly matching YouTube video response so that I can query data naturally.     
+          nested Hive STRUCT and ARRAY exactly matching YouTube video response so that I can query googleapis_youtube
+          table naturally.     
         - It took time to retrieve video metadata/ statistics via Google YouTube Data API.  I use Secondary Sort 
           technique stated below to ensure I only call the API once for each video.
         - I combined VideoId and Source (SourceOrd 0 for train and 1 for test) into TextIntPair object as the key.   
@@ -39,4 +40,28 @@
           the same key.  I will be able to call Google API only once for each video.
         - I use combiner to aggregate local data and reduce data shuffle between mapper and reducer.    
        
-    
+   2. Sort
+   
+      MaxTemperatureUsingSecondarySort2 
+      This is a __Secondary Sort__ example.  The goal is to generate a yearly maximum temperature report using NCDC 
+      climate data.
+      I used a similar technique as comedy_comparison_etl.  I combined the year and air temerature into an IntPair2 
+      object as the key. FirstPartitioner and GroupComparator use year only. The KeyComparator uses the year 
+      and air temerature both.  However, airing temporature is in reverse order.  Both Mapper and Reducer use IntPair2 
+      as the key and NullWritable as the value.  In another word, Reducer will receive the key combined with the year 
+      and the maximum temperature and nothing more.
+      
+      SortByTemperatureUsingTotalOrderPartitioner
+      This is a __Total Sort__ example.  The goal is to generate temperature sorted in total order.  By default, 
+      MapReduce will sort input records by their keys.  A reduce task with 30 reducers will produce 30 files, each 
+      of which is sorted.  There is no easy way to combine the files to produce a globally sorted file.  
+      To archive __Total Sort__, one option is to use single partition only.  That defeat the purpose of parallelism.
+      the other option is to divide the partition by the key itself.  In this case, that's the temperature.  
+      However, partions manually devided might cause uneven workload among reducer.  
+      SortByTemperatureUsingTotalOrderPartitioner use 
+      InputSampler.RandomSampler(freq, numSamples, maximumSplitsSampled) to sample the key space and save the key 
+      distribution. SortByTemperatureUsingTotalOrderPartitioner declares TotalOrderPartitioner as its PartitionClass. 
+      TotalOrderPartitioner uses the above key distribution to contruct partitions.         
+         
+      
+      
