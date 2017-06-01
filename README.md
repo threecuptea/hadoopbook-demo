@@ -56,8 +56,8 @@
       MapReduce will sort input records by their keys.  A reduce task with 30 reducers will produce 30 files, each 
       of which is sorted.  There is no easy way to combine the files to produce a globally sorted file.  
       To archive __Total Sort__, one option is to use single partition only.  That defeats the purpose of parallelism.
-      The other option is to divide the partition by the key itself.  In this case, that's the temperature.  
-      However, partitions manually divided might cause uneven workload among reducers. SortByTemperatureUsingTotalOrderPartitioner uses
+      The other option is to divide the partition by the key itself.  In this case, that's the temperature.  However, partitions manually divided 
+      might cause uneven workload among reducers. SortByTemperatureUsingTotalOrderPartitioner uses
        
       _InputSampler.RandomSampler(freq, numSamples, maximumSplitsSampled)_ 
       
