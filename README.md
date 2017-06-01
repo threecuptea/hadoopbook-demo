@@ -105,21 +105,24 @@
        {stationID}/{year}.
        
       The key point is to use MultipleOutputs.  It differs from comedy_comparison_etl that I did not pre-configure using
-      NamedOutput since the ouput path is dynamic.  The ouput is solely controlled by 
+      NamedOutput since the ouput path is dynamic.  The ouput is solely controlled by
+       
         _String basePath = String.format("%s/%s/part", parser.getStationId(), parser.getYear());_
         _multipleOutputs.write(NullWritable.get(), value, basePath)_
       
       SmallFilesToSequenceFileConverter2 and its associated classes
       
-      The goal is to condense lots of small files into SequeneceFile (a binary file of key-value entries.)
+      The goal is to condense lots of small files into a SequeneceFile (a binary file of key-value entries.)
       and the file name is the entry key and the content is the entry value.
       
       This is to illustrate using customized InputFormat as well as RecordReader to make an input non-splitable and 
       process the input as a whole.  WholeFileInputFormat2 is the customized InputFormat class. non-splitable input is 
       accomplished by overriding
+      
         _protected boolean isSplitable(JobContext context, Path filename) { return false; }_
         
-      WholeFileInputFormat2 also use customized WholeFileRecordReader2 that intitialize FileSplit and Configuration.
+      WholeFileInputFormat2 also use customized WholeFileRecordReader2 that intitialize FileSplit and Configuration.      
+      
         _public void initialize(InputSplit inputSplit, TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException {
                  fileSplit = (FileSplit) inputSplit;
                  conf = taskAttemptContext.getConfiguration();
