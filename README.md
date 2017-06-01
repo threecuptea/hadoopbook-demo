@@ -1,6 +1,7 @@
 ### hadoopbook-demo collected an excellent full-fledge project comedy_comparison_etl as well other hadoop applications that I learned from the book Haddop-The Definitive Guide.  I passed Cloudera Certified Developer for Apache Hadoop (CCDH) by studying that book and practice it thoroughly.
 #### The topics include:
-    1. comedy_comparison_etl
+   1. comedy_comparison_etl   
+   
       This is an assigned exercise when I applied for Maker Studios.  I got a great review and later refined and 
       added JsonSerDe implementation.  
        
