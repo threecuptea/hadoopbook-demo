@@ -139,5 +139,18 @@
              IOUtils.readFully(in, buf, 0, buf.length);
              value.set(buf, 0, buf.length);         
              
-                    
-        
+   5. Miscellaneous
+                     
+      MaxTemperatureWithCounters2 uses multiple Counters
+      
+      MaxTemperatureClusterTest and MaxTemperatureDriverMiniTest extend from ClusterMapReduceTestCase to run Embedded
+      Hadoop cluster.
+      
+      MaxTemperatureMapperTest, MaxTemperatureMRUnitTest and MaxTempertaureReducerTest use 
+      org.apache.hadoop.mrunit.mapreduce.MapDriver and org.apache.hadoop.mrunit.mapreduce.ReduceDriver
+      to run MapReduce unit test
+      
+      MaxTemperatureDriverTest and MaxTemperatureLocalTest illustrate how to work with Yarn to run LocalRunner by setting
+      mapreduce.framework.name, yarn.resourcemanager.address and mapreduce.jobtracker.address all to 'local'
+      
+      
