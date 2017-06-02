@@ -56,7 +56,7 @@ public class SmallFilesToSequenceFileConverter2 extends Configured implements To
     }
 
     public static void main(String[] args) throws Exception {
-        int exit = ToolRunner.run(new SmallFilesToSequenceFileConverter(), args);
+        int exit = ToolRunner.run(new SmallFilesToSequenceFileConverter2(), args);
         System.exit(exit);
 
     }

@@ -13,7 +13,7 @@ import java.io.IOException;
  * Time: 10:18 AM
  * To change this template use File | Settings | File Templates.
  */
-public class IntPair2 implements WritableComparable<IntPair> {
+public class IntPair2 implements WritableComparable<IntPair2> {
 
 
     private int first;
@@ -42,7 +42,7 @@ public class IntPair2 implements WritableComparable<IntPair> {
     }
 
     @Override
-    public int compareTo(IntPair o) {
+    public int compareTo(IntPair2 o) {
         int cmp = compare(this.first, o.getFirst());
         if (cmp == 0) {
             cmp = compare(this.second, o.getSecond());
