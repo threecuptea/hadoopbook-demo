@@ -151,6 +151,4 @@
       to run MapReduce unit test
       
       MaxTemperatureDriverTest and MaxTemperatureLocalTest illustrate how to work with Yarn to run LocalRunner by setting
-      mapreduce.framework.name, yarn.resourcemanager.address and mapreduce.jobtracker.address all to 'local'
-      
-      
+      mapreduce.framework.name, yarn.resourcemanager.address and mapreduce.jobtracker.address all to 'local'    
